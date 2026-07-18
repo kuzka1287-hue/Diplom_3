@@ -1,7 +1,6 @@
 # tests/conftest.py
 
 import pytest
-import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
@@ -9,8 +8,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.firefox import GeckoDriverManager
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.firefox.service import Service as FirefoxService
-from data import BASE_URL, REGISTER_ENDPOINT, LOGIN_ENDPOINT
-from utils import generate_user_data
+from data import BASE_URL
+from helpers import register_user, delete_user, generate_user_data
+
 
 @pytest.fixture(params=["chrome", "firefox"], scope="function")
 def driver(request):
@@ -18,8 +18,6 @@ def driver(request):
     if browser_name == "chrome":
         options = ChromeOptions()
         options.add_argument("--window-size=1920,1080")
-        # headless можно включить для CI
-        # options.add_argument("--headless")
         service = ChromeService(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
     elif browser_name == "firefox":
@@ -34,24 +32,35 @@ def driver(request):
     yield driver
     driver.quit()
 
+
 @pytest.fixture
 def registered_user():
-    """Создаёт пользователя через API и возвращает его данные и токен."""
+    """
+    Создаёт пользователя перед тестом, возвращает его данные и токен.
+    После теста удаляет пользователя (если API поддерживает).
+    Фикстура не содержит assert – только подготовка и постусловие.
+    """
     user_data = generate_user_data()
-    response = requests.post(BASE_URL + REGISTER_ENDPOINT, json=user_data)
-    assert response.status_code == 200, "Не удалось создать пользователя"
+    response = register_user(user_data)
     json_data = response.json()
     access_token = json_data.get("accessToken")
-    return {
+    yield {
         "user": user_data,
         "access_token": access_token,
         "refresh_token": json_data.get("refreshToken")
     }
+    # Постусловие: удаляем пользователя после теста
+    if access_token:
+        delete_user(access_token)
+
 
 @pytest.fixture
 def logged_in_driver(driver, registered_user):
-    """Авторизует драйвер через установку токена в куки."""
-    token = registered_user["access_token"].replace("Bearer ", "")
+    """Авторизует драйвер через установку куки accessToken."""
+    token = registered_user["access_token"]
+    # Если токен приходит с префиксом "Bearer ", удаляем его
+    if token and token.startswith("Bearer "):
+        token = token.replace("Bearer ", "")
     driver.add_cookie({"name": "accessToken", "value": token})
     driver.refresh()
     return driver
