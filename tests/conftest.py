@@ -1,5 +1,3 @@
-# tests/conftest.py
-
 import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -35,11 +33,7 @@ def driver(request):
 
 @pytest.fixture
 def registered_user():
-    """
-    Создаёт пользователя перед тестом, возвращает его данные и токен.
-    После теста удаляет пользователя (если API поддерживает).
-    Фикстура не содержит assert – только подготовка и постусловие.
-    """
+    """Создаёт пользователя, возвращает данные и токен. Постусловие – удаление."""
     user_data = generate_user_data()
     response = register_user(user_data)
     json_data = response.json()
@@ -49,16 +43,14 @@ def registered_user():
         "access_token": access_token,
         "refresh_token": json_data.get("refreshToken")
     }
-    # Постусловие: удаляем пользователя после теста
     if access_token:
-        delete_user(access_token)
+        delete_user(access_token)   # заглушка
 
 
 @pytest.fixture
 def logged_in_driver(driver, registered_user):
-    """Авторизует драйвер через установку куки accessToken."""
+    """Устанавливает токен в куки для авторизации."""
     token = registered_user["access_token"]
-    # Если токен приходит с префиксом "Bearer ", удаляем его
     if token and token.startswith("Bearer "):
         token = token.replace("Bearer ", "")
     driver.add_cookie({"name": "accessToken", "value": token})
