@@ -33,3 +33,10 @@ def delete_user(access_token):
     # headers = {"Authorization": access_token}
     # requests.delete(url, headers=headers)
     pass
+# helpers.py (добавлено)
+
+def create_order(token: str, ingredients: list):
+    """Отправляет запрос на создание заказа. Не проверяет статус."""
+    url = BASE_URL + ORDERS_ENDPOINT
+    headers = {"Authorization": f"Bearer {token}"}
+    return requests.post(url, json={"ingredients": ingredients}, headers=headers)
